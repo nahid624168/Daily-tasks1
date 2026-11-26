@@ -1,0 +1,34 @@
+name: Build APK
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find project
+        run: |
+          if [ -f settings.gradle.kts ]; then
+            echo "PROJ=." >> $GITHUB_ENV
+          else
+            Z=$(ls *.zip | head -n 1)
+            unzip -q -o "$Z" -d _proj
+            echo "PROJ=$(dirname "$(find _proj -name settings.gradle.kts | head -n 1)")" >> $GITHUB_ENV
+          fi
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v3
+        with: { gradle-version: "8.7" }
+      - run: gradle -p "$PROJ" assembleDebug
+      - run: cp "$PROJ/app/build/outputs/apk/debug/app-debug.apk" StudyApp.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: StudyApp-apk, path: StudyApp.apk }
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: StudyApp build ${{ github.run_number }}
+          files: StudyApp.apk
